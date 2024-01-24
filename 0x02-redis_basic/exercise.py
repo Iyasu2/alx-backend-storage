@@ -95,3 +95,11 @@ class Cache:
         print(f"{method.__qualname__} was called {count} times:")
         for _input, _output in zip(inputs, outputs):
             print(f"{method.__qualname__}{_input} -> {_output}")
+
+if __name__ == "__main__":
+# Example usage
+cache = Cache()
+cache.store("foo")
+cache.store("bar")
+cache.store(42)
+cache.replay(cache.store)
