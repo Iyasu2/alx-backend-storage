@@ -5,12 +5,15 @@ import redis
 import uuid
 from typing import Union, Callable, Optional
 from functools import wraps
+UnionOfTypes = Union[str, bytes, int, float]
 
 
 def count_calls(method: Callable) -> Callable:
     '''
     this is a function
     '''
+    key = method.__qualname__
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         '''
@@ -26,13 +29,15 @@ def call_history(method: Callable) -> Callable:
     '''
     this is a function
     '''
+    key = method.__qualname__
+    input_key = f"{method.__qualname__}:inputs"
+    output_key = f"{method.__qualname__}:outputs"
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         '''
         this is a function
         '''
-        input_key = f"{method.__qualname__}:inputs"
-        output_key = f"{method.__qualname__}:outputs"
         self._redis.rpush(input_key, str(args))
         result = method(self, *args, **kwargs)
         self._redis.rpush(output_key, str(result))
@@ -58,10 +63,10 @@ class Cache:
         this is a function
         '''
         key = str(uuid.uuid4())
-        self._redis.set(key, data)
+        self._redis.set({key, data})
         return key
 
-    def get(self, key: str, fn: Optional[Callable[[bytes], Union[str, int]]] = None) -> Union[str, int, bytes]:
+    def get(self, key: str, fn: Optional[Callable] = None) -> UnionOfTypes:
         '''
         this is a function
         '''
@@ -95,11 +100,3 @@ class Cache:
         print(f"{method.__qualname__} was called {count} times:")
         for _input, _output in zip(inputs, outputs):
             print(f"{method.__qualname__}{_input} -> {_output}")
-
-if __name__ == "__main__":
-# Example usage
-cache = Cache()
-cache.store("foo")
-cache.store("bar")
-cache.store(42)
-cache.replay(cache.store)
