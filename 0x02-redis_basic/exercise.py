@@ -1,103 +1,106 @@
 #!/usr/bin/env python3
-'''
-this is the module
-'''
-import redis
-import uuid
-from typing import Union, Callable, Optional
+"""
+Redis module
+"""
+import sys
 from functools import wraps
+from typing import Union, Optional, Callable, List
+from uuid import uuid4
+
+import redis
+
 UnionOfTypes = Union[str, bytes, int, float]
 
 
 def count_calls(method: Callable) -> Callable:
-    '''
-    this is a function
-    '''
+    """
+    A function
+    """
     key = method.__qualname__
 
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        '''
-        this is a function
-        '''
-        key = f"count:{method.__qualname__}"
+        """
+        A function
+        """
         self._redis.incr(key)
         return method(self, *args, **kwargs)
+
     return wrapper
 
 
 def call_history(method: Callable) -> Callable:
-    '''
-    this is a function
-    '''
+    """
+    A function
+    """
     key = method.__qualname__
-    input_key = f"{method.__qualname__}:inputs"
-    output_key = f"{method.__qualname__}:outputs"
+    i = "".join([key, ":inputs"])
+    o = "".join([key, ":outputs"])
 
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        '''
-        this is a function
-        '''
-        self._redis.rpush(input_key, str(args))
-        result = method(self, *args, **kwargs)
-        self._redis.rpush(output_key, str(result))
-        return result
+        """ A function """
+        self._redis.rpush(i, str(args))
+        res = method(self, *args, **kwargs)
+        self._redis.rpush(o, str(res))
+        return res
+
     return wrapper
 
 
 class Cache:
-    '''
-    this is a class
-    '''
+    """
+    A class
+    """
+
     def __init__(self):
-        '''
-        this is a function
-        '''
+        """
+        A function
+        """
         self._redis = redis.Redis()
         self._redis.flushdb()
 
-    @call_history
     @count_calls
-    def store(self, data: Union[str, bytes, int, float]) -> str:
-        '''
-        this is a function
-        '''
-        key = str(uuid.uuid4())
-        self._redis.set({key, data})
+    @call_history
+    def store(self, data: UnionOfTypes) -> str:
+        """
+        A function
+        """
+        key = str(uuid4())
+        self._redis.mset({key: data})
         return key
 
     def get(self, key: str, fn: Optional[Callable] = None) -> UnionOfTypes:
-        '''
-        this is a function
-        '''
-        value = self._redis.get(key)
-        if value is None:
-            return value
-        return value if fn is None else fn(value)
+        """
+        A function
+        """
+        if fn:
+            return fn(self._redis.get(key))
+        data = self._redis.get(key)
+        return data
 
-    def get_str(self, key: str) -> Optional[str]:
-        '''
-        this is a function
-        '''
-        return self.get(key, fn=lambda d: d.decode("utf-8"))
+    def get_int(self, data: bytes) -> int:
+        """A function"""
+        return int.from_bytes(data, sys.byteorder)
 
-    def get_int(self, key: str) -> Optional[int]:
-        '''
-        this is a function
-        '''
-        return self.get(key, fn=int)
+    def get_str(self, data: bytes) -> str:
+        """A function"""
+        return data.decode("utf-8")
 
     def replay(self, method: Callable) -> None:
-        '''
-        this is a function
-        '''
-        count_key = f"count:{method.__qualname__}"
-        input_key = f"{method.__qualname__}:inputs"
-        output_key = f"{method.__qualname__}:outputs"
-        count = self._redis.get(count_key)
-        inputs = self._redis.lrange(input_key, 0, -1)
-        outputs = self._redis.lrange(output_key, 0, -1)
-        print(f"{method.__qualname__} was called {count} times:")
-        for _input, _output in zip(inputs, outputs):
-            print(f"{method.__qualname__}{_input} -> {_output}")
+        """
+        A function
+        """
+        key = method.__qualname__
+        i = "".join([key, ":inputs"])
+        o = "".join([key, ":outputs"])
+
+        inputs = self._redis.lrange(i, 0, -1)
+        outputs = self._redis.lrange(o, 0, -1)
+
+        print(f"{key} was called {len(inputs)} times:")
+
+        for input_params, output_key in zip(inputs, outputs):
+            input_args = eval(input_params.decode('utf-8'))
+            output_data = self._redis.get(output_key.decode("utf-8"))
+            print(f"{key}(*{input_args}) -> {output_data.decode('utf-8')}")
