@@ -81,3 +81,17 @@ class Cache:
         this is a function
         '''
         return self.get(key, fn=int)
+
+    def replay(self, method: Callable) -> None:
+        '''
+        this is a function
+        '''
+        count_key = f"count:{method.__qualname__}"
+        input_key = f"{method.__qualname__}:inputs"
+        output_key = f"{method.__qualname__}:outputs"
+        count = self._redis.get(count_key)
+        inputs = self._redis.lrange(input_key, 0, -1)
+        outputs = self._redis.lrange(output_key, 0, -1)
+        print(f"{method.__qualname__} was called {count} times:")
+        for _input, _output in zip(inputs, outputs):
+            print(f"{method.__qualname__}{_input} -> {_output}")
